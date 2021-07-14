@@ -1,0 +1,90 @@
+# If you load this in Colab or something similar, make sure you install numpy, scikit-fuzzy & matplotlib.
+
+import numpy as np
+import skfuzzy as fuzz
+from skfuzzy import control as ctrl
+%matplotlib inline
+
+temp = ctrl.Antecedent(np.arange(1, 52), 'Temperature')
+press = ctrl.Antecedent(np.arange(1, 120), 'Pressure')
+cmd = ctrl.Consequent(np.arange(1, 22), 'Command')
+
+# Configure values to your own perspective and needs. In the end, it's fuzzy logic anyway.
+
+temp['Cold'] = fuzz.trapmf(temp.universe, [0, 2, 4, 6])
+temp['Fresh'] = fuzz.trapmf(temp.universe, [4, 8, 12, 16])
+temp['Room Temperature'] = fuzz.trapmf(temp.universe, [12, 20, 24, 28])
+temp['Hot'] = fuzz.trapmf(temp.universe, [24, 32, 36, 40])
+temp['Very Hot'] = fuzz.trapmf(temp.universe, [36, 44, 48, 52])
+press['Very Low'] = fuzz.gaussmf(press.universe, 0, 15)
+press['Low'] = fuzz.gaussmf(press.universe, 24, 15)
+press['Normal'] = fuzz.gaussmf(press.universe, 48, 15)
+press['Strong'] = fuzz.gaussmf(press.universe, 72, 15)
+press['Very Strong'] = fuzz.gaussmf(press.universe, 96, 15)
+cmd['Low Valve Opening'] = fuzz.trimf(cmd.universe, [0, 5, 10])
+cmd['Medium Valve Opening'] = fuzz.trimf(cmd.universe, [10, 14, 18])
+cmd['High Valve Opening'] = fuzz.trimf(cmd.universe, [18, 20, 22])
+
+# r1 & r2 are rules, you can adapt them to your needs.
+
+r1 = ctrl.Rule(
+    (temp['Cold'] & press['Very Low']) |
+    (temp['Cold'] & press['Low']) |
+    (temp['Cold'] & press['Normal']) |
+    (temp['Cold'] & press['Strong']) |
+    (temp['Cold'] & press['Very Strong']) |
+    (temp['Fresh'] & press['Very Low']) |
+    (temp['Fresh'] & press['Low']) |
+    (temp['Fresh'] & press['Normal']) |
+    (temp['Fresh'] & press['Strong']) |
+    (temp['Fresh'] & press['Very Strong']) |
+    (temp['Room Temperature'] & press['Low']), cmd['Low Valve Opening'])
+
+r2 = ctrl.Rule(
+    (temp['Room Temperature'] & press['Strong']) |
+    (temp['Room Temperature'] & press['Very Strong']) |
+    (temp['Hot'] & press['Normal']) |
+    (temp['Hot'] & press['Strong']) |
+    (temp['Hot'] & press['Very Strong']) |
+    (temp['Very Hot'] & press['Low']) |
+    (temp['Very Hot'] & press['Normal']) |
+    (temp['Very Hot'] & press['Strong']), cmd['High Valve Opening'])
+
+cctrl = ctrl.ControlSystem([r1, r2])
+csys = ctrl.ControlSystemSimulation(cctrl)
+
+tv = float(input("Write temperature: "))
+
+while tv < 0 or tv > 52:
+    try:
+        tv = float(input("Choose number from 1 to 52: "))
+    except ValueError:
+        print('Error 404')
+
+pv = float(input("Write pressure: "))
+
+while pv < 0 or pv > 120:
+    try:
+        pv = float(input("Choose number from 1 to 120: "))
+    except ValueError:
+        print('Error 404')
+
+csys.input['Temperature'] = tv
+csys.input['Pressure'] = pv
+
+csys.compute()
+
+# Calculations & graphs.
+
+print("Command defined between 1 & 22.")
+print(csys.output['Command'])
+if(csys.output['Command'] > 18):
+    print('Valve opening is high.')
+elif (csys.output['Command'] < 18 and csys.output['Command'] > 10):
+    print('Valve opening is medium.')
+else:
+    print('Valve opening is low.')
+
+cmd.view(sim = csys)
+press.view()
+temp.view()
